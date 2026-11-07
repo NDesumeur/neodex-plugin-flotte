@@ -1,0 +1,9 @@
+{
+  "pluginId": "neodex.flotte",
+  "repo": "NDesumeur/neodex-plugin-flotte",
+  "version": "1.0.0",
+  "sha256": "ddbb36cbaa73dc503449eeedcc03bb8f1f1a079a7dffc4557d440a1b583171c5",
+  "approvedAt": "2026-11-07T17:30:59.723Z",
+  "neobase": ">=4.0.0",
+  "signature": "uubrlgChsQazONHb79oVLdeNUaEXrAvd0ScQE7f03QeM1A9PaZS3vGJbaAoJ7UzIIPhqLJNkvPIua2TZKWtQAQ=="
+}
