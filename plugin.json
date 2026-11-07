@@ -1,0 +1,22 @@
+{
+  "id": "neodex.flotte",
+  "name": "Flotte",
+  "version": "1.0.0",
+  "author": "NDesumeur",
+  "description": "La bataille navale contre l'ordinateur : cherche ses cinq navires et coule-les avant qu'il ne coule les tiens.",
+  "icon": "icon.png",
+  "entry": "index.js",
+  "view": "flotte",
+  "neobase": ">=4.0.0",
+  "type": "app",
+  "category": "Jeux",
+  "syncMode": "progression",
+  "syncInfo": "Victoires, victoire la plus rapide.",
+  "mobile": false,
+  "system": false,
+  "dependencies": {},
+  "sdk": "2.1.0",
+  "permissions": [
+    "storage"
+  ]
+}
