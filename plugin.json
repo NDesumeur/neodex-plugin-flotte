@@ -1,7 +1,7 @@
 {
   "id": "neodex.flotte",
   "name": "Flotte",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "NDesumeur",
   "description": "La bataille navale contre l'ordinateur : deux grilles de 10 × 10, cinq navires de chaque côté placés au hasard sans se toucher, et un tir à tour de rôle ; qui touche rejoue, et l'eau autour d'un navire coulé est marquée d'office. Amiral facile qui tire au hasard ou normal qui quadrille puis achève, victoires et victoire la plus rapide par niveau.",
   "icon": "icon.png",
