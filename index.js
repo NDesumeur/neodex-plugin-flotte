@@ -1,23 +1,25 @@
 // Flotte : La bataille navale contre l'ordinateur : cherche ses cinq navires et coule-les avant qu'il ne coule les tiens.
 // Jeu NeoDex en pixel art dessiné à la main (police bitmap, cadres et boutons en pixels). Il tourne dans le bac à sable de NeoDex.
 const HTML = `<div class="appWrap wide">
-  <div class="agHead"><span class="label">Flotte</span><span class="hint">Clic sur une case de la grille d'en face</span></div>
+  <div class="agHead"><span class="label">Flotte</span><span class="hint">Place ta flotte, puis clic sur une case de la grille d'en face</span></div>
   <div class="gMain"><div class="gameBox"><canvas id="gc" width="320" height="190"></canvas></div>
     <div class="gSide">
       <div class="sysCard"><b>RECORDS</b><div class="gStats" id="gStats"></div></div>
-      <div class="row"><button class="btn main" id="gNew">NOUVELLE PARTIE</button></div>
+      <div class="row"><button class="btn main" id="gNew">NOUVELLE PARTIE</button><button class="btn" id="ftFs">PLEIN ÉCRAN</button></div>
       <label class="row">Amiral <select id="ftLvl" class="f"><option value="0">Facile</option><option value="1">Normal</option></select></label>
-      <div class="hint">Touché : tu rejoues. Autour d'un navire coulé, l'eau est marquée d'office (les navires ne se touchent jamais).</div><div class="hint">En normal, l'amiral d'en face tire en damier puis achève ce qu'il a touché.</div>
+      <div class="hint">Avant la bataille : glisse tes navires sur ta grille, un clic sur un navire le tourne. « Au hasard » les replace, « Combat ! » ou Entrée lance la partie.</div><div class="hint">Touché : tu rejoues. Autour d'un navire coulé, l'eau est marquée d'office (les navires ne se touchent jamais).</div><div class="hint">En normal, l'amiral d'en face tire en damier puis achève ce qu'il a touché.</div>
     </div></div>
 </div>`;
 const CSS = `.gMain{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
-.gameBox{display:grid;place-items:center;padding:10px;background:#05010b;flex:2;min-width:320px;position:relative}
+.gameBox{display:grid;place-items:center;padding:10px;background:#05010b;flex:2 1 600px;min-width:min(100%,340px);position:relative}
 .gameBox canvas{width:100%;image-rendering:pixelated;cursor:var(--cp,pointer);touch-action:none}
 .gSide{display:flex;flex-direction:column;gap:14px;flex:1;min-width:250px;max-width:420px}
 .gSide .sysCard{display:flex;flex-direction:column}
 .gStats{display:grid;grid-template-columns:1fr auto;gap:4px 14px}
 .gStats b{text-align:right}
-.gameBox canvas{max-width:760px;aspect-ratio:320/190}`;
+.gameBox canvas{width:min(100%,max(320px,calc((100vh - 190px) * 320 / 190)));height:auto;aspect-ratio:320/190}
+.gameBox:fullscreen{padding:0}
+.gameBox:fullscreen canvas{width:min(100vw,calc(100vh * 320 / 190))}`;
 /* ---------- l'habillage pixel art, dessiné à la main : police bitmap (accents compris), cadres, boutons, icônes ----------
    Tout est en pixels pleins, agrandis par 2 sans lissage : aucun dégradé, aucune ombre floue. */
 const PXK = (() => {
@@ -330,7 +332,13 @@ const keyOk = e => view.classList.contains('on') && !/INPUT|SELECT|TEXTAREA/.tes
 const showStats = rows => $('gStats').replaceChildren(...rows.flatMap(([a, b]) => [el('span', '', a), el('b', '', String(b))]));
 
 /* ---------- Flotte : la bataille navale contre l'ordinateur. Chacun tire à son tour ; le premier qui coule toute la flotte d'en face gagne. ---------- */
-const FT = {N: 10, C: 13, LX: 14, RX: 176, Y0: 46, SHIPS: [5, 4, 3, 3, 2]};
+const FT = {N: 10, C: 13, LX: 14, RX: 176, Y0: 46, SHIPS: [5, 4, 3, 3, 2], NAMES: ['porte-avions', 'cuirassé', 'croiseur', 'sous-marin', 'torpilleur']};
+const ftCells = (len, x, y, h) => Array.from({length: len}, (_, i) => [x + (h ? i : 0), y + (h ? 0 : i)]);
+function ftFits(ships, id, x, y, h) {  // le navire id tiendrait-il là, sans toucher les autres (même en diagonale) ?
+  const cells = ftCells(ships[id].len, x, y, h); if (cells.some(([a, b]) => a < 0 || b < 0 || a >= FT.N || b >= FT.N)) return false;
+  return ships.every((s, j) => j === id || s.cells.every(([a, b]) => cells.every(([c, d]) => Math.abs(a - c) > 1 || Math.abs(b - d) > 1)));
+}
+function ftOcc(F) { F.occ = Array.from({length: FT.N}, () => Array(FT.N).fill(-1)); F.ships.forEach((s, id) => s.cells.forEach(([a, b]) => F.occ[b][a] = id)); }
 const fts = gstore('flotte', {wins: 0, games: 0, lvl: 1});
 let ft = null;
 function ftPlace() {  // une flotte au hasard, les navires ne se touchent pas (même en diagonale)
@@ -343,20 +351,20 @@ function ftPlace() {  // une flotte au hasard, les navires ne se touchent pas (m
       }
       ok = false;
     });
-    if (ok && ships.length === FT.SHIPS.length) return {occ, ships};
+    if (ok && ships.length === FT.SHIPS.length) return {occ, ships};  // ships[i] suit l'ordre de FT.SHIPS : son dessin et son nom
   }
 }
 function ftNew() {
-  ft = Object.assign(ft || {tick: 0, raf: 0}, {mode: 'play', me: ftPlace(), foe: ftPlace(), shotMe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), shotFoe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), turn: 'me', aiAt: 0, targets: [], fx: [], endAt: 0, msg: 'À toi de tirer'});
+  ft = Object.assign(ft || {tick: 0, raf: 0}, {mode: 'place', seen: ft ? ft.tick : 0, me: ftPlace(), foe: ftPlace(), shotMe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), shotFoe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), turn: 'me', aiAt: 0, targets: [], parts: [], rings: [], drag: null, endAt: 0, msg: 'Place tes navires'});
   ftInfo();
 }
 const ftSunk = s => s.hits >= s.len;
 function ftFire(side, x, y) {  // side : la flotte visée ; -> 'miss' | 'hit' | 'sunk'
   const F = side === 'foe' ? ft.foe : ft.me, shots = side === 'foe' ? ft.shotFoe : ft.shotMe; if (shots[y][x]) return null;
-  const id = F.occ[y][x]; shots[y][x] = id >= 0 ? 2 : 1; ft.fx.push({side, x, y, t: 0, hit: id >= 0});
+  const id = F.occ[y][x]; shots[y][x] = id >= 0 ? 2 : 1; ftBurst(side, x, y, id >= 0);
   if (id < 0) { beep(200, .15, 'sine', 120, .06); return 'miss'; }
   const s = F.ships[id]; s.hits++; beep(90, .25, 'sawtooth', 50, .08);
-  if (ftSunk(s)) { for (const [a, b] of s.cells) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (shots[b + dy]?.[a + dx] === 0) shots[b + dy][a + dx] = 1; return 'sunk'; }  // autour d'un navire coulé, l'eau est sûre
+  if (ftSunk(s)) { const F0 = ft; s.cells.forEach(([a, b], i) => setTimeout(() => ft === F0 && ftBurst(side, a, b, true, true), 90 * (i + 1))); setTimeout(() => beep(60, .5, 'sawtooth', 30, .09), 120); for (const [a, b] of s.cells) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (shots[b + dy]?.[a + dx] === 0) shots[b + dy][a + dx] = 1; return 'sunk'; }  // autour d'un navire coulé, l'eau est sûre
   return 'hit';
 }
 const ftLost = F => F.ships.every(ftSunk);
@@ -377,48 +385,144 @@ function ftAi() {  // l'ordinateur : il chasse en damier, puis achève ce qu'il 
   ft.msg = r === 'miss' ? 'À toi de tirer' : r === 'sunk' ? 'Il a coulé un de tes navires !' : 'Touché ! Il rejoue'; if (r === 'miss') ft.turn = 'me'; else ft.aiAt = ft.tick + 40;
 }
 function ftEnd(win) { ft.mode = 'over'; ft.win = win; ft.endAt = ft.tick; fts.games++; if (win) { fts.wins++; best('flotte' + fts.lvl, -ft.shotFoe.flat().filter(v => v).length); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .14, 'triangle'), i * 100)); } saveGames(); ftInfo(); }
-function ftUpdate() { for (const f of ft.fx) f.t++; ft.fx = ft.fx.filter(f => f.t < 20); if (ft.turn === 'ai' && ft.tick >= ft.aiAt) ftAi(); }
+function ftBurst(side, x, y, hit, big = false) {
+  const X = (side === 'foe' ? FT.RX : FT.LX) + x * FT.C + 6.5, Y = FT.Y0 + y * FT.C + 6.5, R = Math.random;
+  if (hit) {  // le feu : une boule qui s'ouvre, des éclats qui retombent dans l'eau, puis une fumée qui monte
+    ft.rings.push({x: X, y: Y, t: 0, life: big ? 26 : 20, kind: 'boom', r: big ? 12 : 9});
+    for (let i = 0; i < (big ? 10 : 8); i++) { const a = R() * Math.PI * 2, v = .6 + R() * 1.4; ft.parts.push({x: X, y: Y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, g: .08, t: 0, life: 24 + R() * 12, c: R() < .5 ? '#ffd84a' : '#ff6a2a', s: 1 + (R() < .3)}); }
+    for (let i = 0; i < 4; i++) ft.parts.push({x: X + R() * 6 - 3, y: Y, vx: R() * .3 - .15, vy: -.25 - R() * .2, g: 0, t: -8 - i * 6, life: 40, c: '#5a5a70', s: 2});
+  } else {  // à l'eau : une gerbe qui monte et retombe, et deux ronds dans l'eau
+    ft.rings.push({x: X, y: Y, t: 0, life: 30, kind: 'ripple', r: 8}, {x: X, y: Y, t: -8, life: 30, kind: 'ripple', r: 6});
+    for (let i = 0; i < 9; i++) ft.parts.push({x: X + R() * 4 - 2, y: Y, vx: R() * 1.2 - .6, vy: -1.6 - R() * 1.4, g: .14, t: 0, life: 22 + R() * 8, c: R() < .5 ? '#ffffff' : '#9ad0ff', s: 1, floor: Y + 2});
+  }
+}
+function ftStepFx() {
+  for (const p of ft.parts) { if (p.t++ < 0) continue; p.x += p.vx; p.y += p.vy; p.vy += p.g; if (p.floor && p.y > p.floor) p.t = p.life; }
+  for (const r of ft.rings) r.t++;
+  ft.parts = ft.parts.filter(p => p.t < p.life); ft.rings = ft.rings.filter(r => r.t < r.life);
+}
+function ftUpdate() { if (ft.turn === 'ai' && ft.tick >= ft.aiAt) ftAi(); }
 const FT_SEA = [0, 1].map(f => cnv(FT.C, FT.C, b => { px(b, '#123a6a', 0, 0, FT.C, FT.C); px(b, '#1a4a80', 0, 0, FT.C, 1); px(b, '#0c2a50', 0, 0, 1, FT.C); px(b, '#3a7ac0', 3 + f * 3, 5, 3, 1); px(b, '#3a7ac0', 1 + f * 2, 9, 2, 1); }));
-const FT_HULL = (h, a, b, len) => { const c = cnv(FT.C, FT.C, g2 => { px(g2, '#05010b', 1, 1, 11, 11); px(g2, '#8a8aa0', 2, 2, 9, 9); px(g2, '#b0b0c8', 2, 2, 9, 2); if (a) { px(g2, '#5a5a70', 4, 4, 5, 5); px(g2, '#c8c8e0', 5, 5, 2, 2); } }); return c; };
-const FT_PART = FT_HULL(true, 1), FT_DECK = FT_HULL(true, 0);
+function ftShipArt(type, len) {
+  const w = len * FT.C, sub = type === 3;
+  return cnv(w, FT.C, b => {
+    const O = '#05010b', lo = sub ? '#2e3c4c' : '#5e5e74', hi = sub ? '#4e6074' : '#9a9ab4', top = sub ? '#64788e' : '#c0c0d8';
+    for (let x = 1; x < w - 1; x++) {  // la coque, de profil vue du dessus : pointue devant (à droite), arrondie derrière
+      const f = w - 2 - x, h = Math.max(1, Math.min(4, f < 7 ? Math.round(f * .6) : 4, x < (sub ? 5 : 3) ? x + (sub ? 0 : 2) : 4));
+      px(b, O, x, 6 - h - 1, 1, 2 * h + 3); px(b, lo, x, 6 - h, 1, 2 * h + 1); px(b, hi, x, 6 - h, 1, h); if (h > 2) px(b, top, x, 6 - h, 1, 1);
+    }
+    const tur = (x, dir = 1) => { px(b, O, x - 1, 3, 6, 6); px(b, '#4a4a5e', x, 4, 4, 4); px(b, '#d0d0e8', x, 4, 2, 1); px(b, O, dir > 0 ? x + 4 : x - 4, 5, 4, 2); px(b, '#8a8aa0', dir > 0 ? x + 4 : x - 3, 5, 3, 1); };
+    const bridge = x => { px(b, O, x - 1, 2, 7, 8); px(b, '#d8d8ec', x, 3, 5, 6); px(b, '#3a3a50', x + 1, 4, 3, 1); px(b, '#3a3a50', x + 1, 6, 3, 1); };
+    if (type === 0) {  // porte-avions : pont plat sombre, piste en pointillé, îlot sur le côté, deux avions
+      px(b, '#3e3e4c', 4, 3, w - 13, 7); for (let x = 6; x < w - 12; x += 5) px(b, '#e8e8f4', x, 6, 3, 1); px(b, '#ffd84a', 4, 3, w - 13, 1);
+      px(b, O, Math.round(w * .62) - 1, 0, 8, 4); px(b, '#d8d8ec', Math.round(w * .62), 1, 6, 2); px(b, '#3a3a50', Math.round(w * .62) + 1, 1, 4, 1);
+      for (const x of [12, 30]) { px(b, '#a8b8d0', x, 4, 1, 5); px(b, '#a8b8d0', x - 2, 6, 5, 1); px(b, '#a8b8d0', x + 2, 5, 1, 3); }
+    } else if (type === 1) { tur(6); tur(16); bridge(25); tur(36, -1); }  // cuirassé : trois tourelles
+    else if (type === 2) { tur(5); bridge(15); tur(27, -1); }  // croiseur
+    else if (type === 3) { px(b, O, 14, 2, 9, 8); px(b, '#3a4a5c', 15, 3, 7, 6); px(b, '#6a7e94', 15, 3, 7, 2); px(b, '#9ad0ff', 17, 5, 1, 1); px(b, '#9ad0ff', 20, 5, 1, 1); px(b, '#c0c8d8', 18, 0, 1, 3); }  // sous-marin : kiosque et périscope
+    else { tur(4); bridge(13); }  // torpilleur
+  });
+}
+const FT_ART = FT.SHIPS.map((len, t) => { const h = ftShipArt(t, len), v = cnv(FT.C, h.width, b => { b.translate(FT.C, 0); b.rotate(Math.PI / 2); b.drawImage(h, 0, 0); });
+  const dark = c => cnv(c.width, c.height, b => { b.drawImage(c, 0, 0); b.globalCompositeOperation = 'source-atop'; b.fillStyle = 'rgba(30,6,6,.55)'; b.fillRect(0, 0, c.width, c.height); });
+  return {h, v, hs: dark(h), vs: dark(v)}; });
 const FT_FIRE = [spr(['..k.k..', '.kok.k.', '.koyok.', 'koyyyok', 'koyYyok', '.koook.', '..kkk..'], {k: '#05010b', o: '#ff6a2a', y: '#ffd84a', Y: '#ffffff'}), spr(['.k...k.', 'kok.kok', '.koyok.', 'koyYyok', 'koyyyok', '.koook.', '..kkk..'], {k: '#05010b', o: '#ff6a2a', y: '#ffd84a', Y: '#ffffff'})];
 function ftGrid(X0, F, shots, mine) {
   px(g, '#05010b', X0 - 2, FT.Y0 - 2, FT.N * FT.C + 4, FT.N * FT.C + 4);
   for (let y = 0; y < FT.N; y++) for (let x = 0; x < FT.N; x++) {
     const X = X0 + x * FT.C, Y = FT.Y0 + y * FT.C, s = shots[y][x], id = F.occ[y][x], ship = id >= 0 ? F.ships[id] : null;
     g.drawImage(FT_SEA[(Math.floor(ft.tick / 30) + x + y) % 2], X, Y);
-    if (ship && (mine || ftSunk(ship))) g.drawImage(ship.cells[0][0] === x && ship.cells[0][1] === y ? FT_PART : FT_DECK, X, Y);
-    if (s === 1) { px(g, '#8ab8e8', X + 5, Y + 5, 3, 3); px(g, '#123a6a', X + 6, Y + 6, 1, 1); }
-    if (s === 2) g.drawImage(FT_FIRE[(Math.floor(ft.tick / 8) + x) % 2], X + 3, Y + 3);
     if (!mine && ft.hover && ft.hover[0] === x && ft.hover[1] === y && !s && ft.turn === 'me' && ft.mode === 'play') { px(g, '#ffd84a', X, Y, FT.C, 1); px(g, '#ffd84a', X, Y + FT.C - 1, FT.C, 1); px(g, '#ffd84a', X, Y, 1, FT.C); px(g, '#ffd84a', X + FT.C - 1, Y, 1, FT.C); }
   }
-  for (const f of ft.fx) if ((f.side === 'foe') !== mine) { const k = f.t / 20, r = Math.round(2 + k * 8); g.globalAlpha = 1 - k; const X = X0 + f.x * FT.C + 6, Y = FT.Y0 + f.y * FT.C + 6; px(g, f.hit ? '#ffd84a' : '#c8e0ff', X - r, Y, r * 2, 1); px(g, f.hit ? '#ffd84a' : '#c8e0ff', X, Y - r, 1, r * 2); g.globalAlpha = 1; }
+  // les navires (les miens toujours, ceux d'en face une fois coulés ; celui qu'on glisse est dessiné à part), puis les marques des tirs par-dessus
+  F.ships.forEach((sh, id) => { if (!(mine || ftSunk(sh)) || mine && ft.drag?.id === id && ft.drag.moved) return; const a = FT_ART[id], im = ftSunk(sh) ? (sh.h ? a.hs : a.vs) : sh.h ? a.h : a.v; g.drawImage(im, X0 + sh.cells[0][0] * FT.C, FT.Y0 + sh.cells[0][1] * FT.C); });
+  for (let y = 0; y < FT.N; y++) for (let x = 0; x < FT.N; x++) { const X = X0 + x * FT.C, Y = FT.Y0 + y * FT.C, s = shots[y][x];
+    if (s === 1) { px(g, '#8ab8e8', X + 5, Y + 5, 3, 3); px(g, '#123a6a', X + 6, Y + 6, 1, 1); }
+    if (s === 2) g.drawImage(FT_FIRE[(Math.floor(ft.tick / 8) + x) % 2], X + 3, Y + 3); }
+  if (mine && ft.drag?.moved) { const d = ft.drag, a = FT_ART[d.id], ok = ftFits(ft.me.ships, d.id, d.x, d.y, d.h), im = d.h ? a.h : a.v, X = X0 + d.x * FT.C, Y = FT.Y0 + d.y * FT.C;
+    g.globalAlpha = .85; g.drawImage(im, X, Y); g.globalAlpha = 1; const w = d.h ? im.width : FT.C, h = d.h ? FT.C : im.height, c = ok ? '#5fdf6a' : '#ff4a5a';
+    px(g, c, X, Y, w, 1); px(g, c, X, Y + h - 1, w, 1); px(g, c, X, Y, 1, h); px(g, c, X + w - 1, Y, 1, h); }
+}
+function ftFxDraw() {
+  for (const r of ft.rings) { if (r.t < 0) continue; const k = r.t / r.life;
+    if (r.kind === 'boom') { const rad = 2 + k * r.r; g.globalAlpha = 1 - k * .7; for (let a = 0; a < 20; a++) { const t = a / 20 * Math.PI * 2; px(g, k < .3 ? '#ffffff' : k < .6 ? '#ffd84a' : '#ff6a2a', r.x + Math.cos(t) * rad - 1, r.y + Math.sin(t) * rad - 1, 2, 2); }
+      if (k < .4) { px(g, '#fff4b0', r.x - 3, r.y - 3, 6, 6); px(g, '#ffd84a', r.x - 4, r.y - 1, 8, 2); px(g, '#ffd84a', r.x - 1, r.y - 4, 2, 8); } }
+    else { const rx = 2 + k * r.r * 1.4, ry = rx * .55; g.globalAlpha = 1 - k; for (let a = 0; a < 24; a++) { const t = a / 24 * Math.PI * 2; px(g, '#c8e8ff', r.x + Math.cos(t) * rx, r.y + Math.sin(t) * ry); } }
+    g.globalAlpha = 1; }
+  for (const p of ft.parts) { if (p.t < 0) continue; g.globalAlpha = Math.min(1, (p.life - p.t) / 10) * (p.c === '#5a5a70' ? .7 : 1); px(g, p.c, p.x, p.y, p.s, p.s); } g.globalAlpha = 1;
 }
 function ftDraw() {
   for (let y = 0; y < H; y++) px(g, y % 3 ? '#081830' : '#0a1c38', 0, y, W, 1);
   pxFont(g, 'TA FLOTTE', FT.LX, FT.Y0 - 8, '#c8d8ff', 6); pxFont(g, 'EN FACE', FT.RX, FT.Y0 - 8, '#ffb0b8', 6);
-  ftGrid(FT.LX, ft.me, ft.shotMe, true); ftGrid(FT.RX, ft.foe, ft.shotFoe, false);
+  for (; ft.seen < ft.tick; ft.seen++) ftStepFx();
+  ftGrid(FT.LX, ft.me, ft.shotMe, true); ftGrid(FT.RX, ft.foe, ft.shotFoe, false); ftFxDraw();
+  if (ft.mode === 'place') {  // avant la bataille : la grille d'en face sert de panneau, avec deux boutons
+    px(g, 'rgba(4,12,26,.82)', FT.RX - 2, FT.Y0 - 2, FT.N * FT.C + 4, FT.N * FT.C + 4);
+    pxFont(g, 'PLACE TA FLOTTE', FT.RX + 65, FT.Y0 + 18, '#ffd84a', 7, 'center');
+    ['Glisse un navire', 'pour le déplacer.', 'Clic : le tourner.'].forEach((t, i) => pxFont(g, t, FT.RX + 65, FT.Y0 + 36 + i * 11, '#c8d8ff', 6, 'center'));
+    for (const [k, b] of Object.entries(FT_BTN)) { const on = ft.hoverBtn === k, main = k === 'go';
+      px(g, '#05010b', b.x - 1, b.y - 1, b.w + 2, b.h + 2); px(g, main ? (on ? '#ff7a86' : '#ff4a5a') : on ? '#2e5a9a' : '#1c3a6a', b.x, b.y, b.w, b.h); px(g, main ? '#ffb0b8' : '#4a7ac0', b.x, b.y, b.w, 1); px(g, main ? '#c02a3a' : '#08162a', b.x, b.y + b.h - 1, b.w, 1);
+      pxFont(g, b.label, b.x + b.w / 2, b.y + b.h - 4, main ? '#030a14' : '#eef6ff', 6, 'center'); } }
   const left = s => s.ships.filter(x => !ftSunk(x)).length;
   pxFont(g, left(ft.me) + ' navires', FT.LX + FT.N * FT.C, FT.Y0 - 8, '#8aa8d8', 6, 'right'); pxFont(g, left(ft.foe) + ' navires', FT.RX + FT.N * FT.C, FT.Y0 - 8, '#d88a9a', 6, 'right');
-  pxFont(g, ft.msg, W / 2, 18, ft.turn === 'me' ? '#ffd84a' : '#ffffff', 7, 'center');
+  pxFont(g, ft.mode === 'place' ? 'Place tes navires, puis « Combat ! »' : ft.msg, W / 2, 18, ft.turn === 'me' ? '#ffd84a' : '#ffffff', 7, 'center');
   if (ft.mode === 'over' && ft.tick - ft.endAt > 30) gameText(g, W, [[ft.win ? 'VICTOIRE !' : 'TA FLOTTE A COULÉ', ft.win ? '#5fdf6a' : '#ff4a5a', 12], [ft.shotFoe.flat().filter(v => v).length + ' cases visées', '#ffffff'], ['Clic : nouvelle bataille', '#ffd84a']], 100);
 }
-const ftCell = e => { const [mx, my] = cpos(e), x = Math.floor((mx - FT.RX) / FT.C), y = Math.floor((my - FT.Y0) / FT.C); return x >= 0 && y >= 0 && x < FT.N && y < FT.N ? [x, y] : null; };
-cv.onpointermove = e => { if (ft) ft.hover = ftCell(e); };
+const FT_BTN = {rnd: {x: FT.RX + 20, y: FT.Y0 + 76, w: 90, h: 15, label: 'AU HASARD'}, go: {x: FT.RX + 20, y: FT.Y0 + 98, w: 90, h: 17, label: 'COMBAT !'}};
+const ftCell = (e, X0 = FT.RX, clamp = false) => { const [mx, my] = cpos(e); let x = Math.floor((mx - X0) / FT.C), y = Math.floor((my - FT.Y0) / FT.C); if (clamp) { x = Math.max(-4, Math.min(FT.N + 3, x)); y = Math.max(-4, Math.min(FT.N + 3, y)); return [x, y]; } return x >= 0 && y >= 0 && x < FT.N && y < FT.N ? [x, y] : null; };
+const ftBtnAt = e => { const [mx, my] = cpos(e); return Object.keys(FT_BTN).find(k => { const b = FT_BTN[k]; return mx >= b.x && mx < b.x + b.w && my >= b.y && my < b.y + b.h; }); };
+function ftStart() { if (ft.mode !== 'place') return; ft.mode = 'play'; ft.drag = null; ft.msg = 'À toi de tirer'; beep(440, .1, 'square', 880, .06); }
+function ftShuffle() { ft.me = ftPlace(); ft.drag = null; beep(330, .06); }
+function ftRotate(id) {  // tourne autour de sa première case ; s'il ne tient pas, essaie de le décaler un peu
+  const sh = ft.me.ships[id], [x0, y0] = sh.cells[0];
+  for (const [dx, dy] of [[0, 0], [-1, 0], [0, -1], [-2, 0], [0, -2], [-3, 0], [0, -3], [-4, 0], [0, -4], [1, 0], [0, 1]]) if (ftFits(ft.me.ships, id, x0 + dx, y0 + dy, !sh.h)) { sh.h = !sh.h; sh.cells = ftCells(sh.len, x0 + dx, y0 + dy, sh.h); ftOcc(ft.me); beep(520, .05); return true; }
+  beep(120, .08); return false;
+}
+function ftDrop() {  // relâché : un clic sans bouger tourne le navire, un glissé le pose s'il tient (sinon il revient)
+  const d = ft.drag; ft.drag = null; if (!d) return;
+  if (!d.moved) return ftRotate(d.id);
+  if (!ftFits(ft.me.ships, d.id, d.x, d.y, d.h)) return beep(120, .08), false;
+  const sh = ft.me.ships[d.id]; sh.cells = ftCells(sh.len, d.x, d.y, d.h); ftOcc(ft.me); beep(400, .05); return true;
+}
+cv.onpointermove = e => { if (!ft) return; ft.hover = ftCell(e); ft.hoverBtn = ft.mode === 'place' ? ftBtnAt(e) : null;
+  const d = ft.drag; if (d) { const [cx, cy] = ftCell(e, FT.LX, true), nx = cx - d.ox, ny = cy - d.oy; if (nx !== d.x || ny !== d.y) { d.x = nx; d.y = ny; d.moved = true; } } };
+cv.onpointerup = cv.onpointercancel = () => { if (ft?.drag) ftDrop(); };
 cv.onpointerdown = e => {
   e.preventDefault(); if (!ft) return; if (ft.mode === 'over') { if (ft.tick - ft.endAt > 30) ftNew(); return; }
+  if (ft.mode === 'place') {
+    const b = ftBtnAt(e); if (b === 'go') return ftStart(); if (b === 'rnd') return ftShuffle();
+    const m = ftCell(e, FT.LX), id = m ? ft.me.occ[m[1]][m[0]] : -1; if (id < 0) return;
+    const [x0, y0] = ft.me.ships[id].cells[0]; ft.drag = {id, ox: m[0] - x0, oy: m[1] - y0, x: x0, y: y0, h: ft.me.ships[id].h, moved: false}; try { cv.setPointerCapture(e.pointerId); } catch {} return;
+  }
   const c = ftCell(e); if (!c || ft.turn !== 'me' || ft.shotFoe[c[1]][c[0]]) return;
   const r = ftFire('foe', ...c); if (ftLost(ft.foe)) return ftEnd(true);
   ft.msg = r === 'miss' ? 'Dans l\'eau…' : r === 'sunk' ? 'Coulé ! Tu rejoues' : 'Touché ! Tu rejoues'; if (r === 'miss') { ft.turn = 'ai'; ft.aiAt = ft.tick + 45; }
 };
 function ftInfo() { const b = games.best['flotte' + fts.lvl]; showStats([['Victoires', fts.wins + ' / ' + fts.games], ['Victoire la plus rapide', b != null ? -b + ' tirs' : '—']]); $('ftLvl').value = fts.lvl; }
 $('gNew').onclick = () => { ftNew(); $('gNew').blur(); };
+$('ftFs').onclick = () => { $('ftFs').blur(); try { if (document.fullscreenElement) document.exitFullscreen(); else cv.parentElement.requestFullscreen?.().catch(() => {}); } catch {} };
+document.addEventListener('keydown', e => { if (keyOk(e) && ft?.mode === 'place' && e.key === 'Enter') { e.preventDefault(); ftStart(); } });
 $('ftLvl').onchange = () => { fts.lvl = +$('ftLvl').value; saveGames(); ftNew(); $('ftLvl').blur(); };
-{  // vérification : 5 navires de 17 cases qui ne se touchent pas ; l'ordinateur finit toujours par tout couler
-  const keep = ft, kl = fts.lvl; ft = null; ftNew(); const cells = ft.me.ships.flatMap(s => s.cells); let ok = cells.length === 17 && new Set(cells.map(String)).size === 17;
-  fts.lvl = 1; let n = 0; while (!ftLost(ft.me) && n < 100) { ft.turn = 'ai'; ftAi(); n++; } ok &&= ftLost(ft.me) && n < 100;
-  console.assert(ok, 'flotte', n); ft = keep; fts.lvl = kl; fts.games = Math.max(0, fts.games - 1);
+function ftCheck() {  // vérification : 5 navires de 17 cases qui ne se touchent pas ; placer, tourner, refuser un navire collé ; tirs qui éclaboussent ; l'ordinateur finit toujours par tout couler
+  const keep = ft, kl = fts.lvl, kg = fts.games, bad = [], vol = actx; actx = {currentTime: 0, createOscillator: () => { throw 0; }};
+  ft = null; ftNew(); const cells = ft.me.ships.flatMap(s => s.cells); if (!(cells.length === 17 && new Set(cells.map(String)).size === 17)) bad.push('flotte');
+  if (ft.mode !== 'place') bad.push('placement');
+  // une flotte connue : tout en ligne à gauche, un navire par ligne paire
+  ft.me.ships.forEach((s, i) => { s.h = true; s.cells = ftCells(s.len, 0, i * 2, true); }); ftOcc(ft.me);
+  if (ftFits(ft.me.ships, 4, 0, 7, true)) bad.push('collé accepté'); if (!ftFits(ft.me.ships, 4, 5, 9, true)) bad.push('place libre refusée');
+  ft.drag = {id: 4, ox: 0, oy: 0, x: 6, y: 8, h: true, moved: true}; if (!ftDrop() || ft.me.occ[8][6] !== 4 || ft.me.occ[8][0] !== -1) bad.push('glisser');
+  if (!ftRotate(4) || ft.me.ships[4].h || ft.me.occ[9][6] !== 4) bad.push('tourner');
+  ft.drag = {id: 4, ox: 0, oy: 0, x: 6, y: 8, h: false, moved: false}; ftDrop(); if (!ft.me.ships[4].h) bad.push('tourner au clic');
+  ftStart(); if (ft.mode !== 'play') bad.push('combat');
+  const r = ftFire('foe', ...ft.foe.ships[0].cells[0]); if (r !== 'hit' || !ft.rings.length || !ft.parts.length) bad.push('explosion');
+  ft.foe.occ.some((row, y) => row.some((id, x) => { if (id < 0 && !ft.shotFoe[y][x]) { ft.parts = []; ftFire('foe', x, y); return true; } return false; })); if (!ft.parts.some(p => p.floor)) bad.push('gerbe');
+  for (let i = 0; i < 60; i++) ftStepFx(); if (ft.parts.length || ft.rings.length) bad.push('effets sans fin');
+  fts.lvl = 1; let n = 0; while (!ftLost(ft.me) && n < 100) { ft.turn = 'ai'; ftAi(); n++; } if (!ftLost(ft.me) || n >= 100) bad.push('ordinateur ' + n);
+  actx = vol; ft = keep; fts.lvl = kl; fts.games = kg;
+  return bad.length ? bad.join(', ') : 'ok';
 }
+{ const c = ftCheck(); console.assert(c === 'ok', 'flotte', c); }
+cv.__ft = {st: () => ft, check: ftCheck, FT, BTN: FT_BTN, fits: (id, x, y, h) => ftFits(ft.me.ships, id, x, y, h)};
 ctx.onOpen(() => { if (!ft) ftNew(); gameLoop(ft, 'flotte', ftUpdate, ftDraw); ftInfo(); });
 
 }
