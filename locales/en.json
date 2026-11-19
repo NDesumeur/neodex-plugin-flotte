@@ -76,7 +76,6 @@
  "VICTOIRE !": "VICTORY!",
  "Victoire la plus rapide": "Fastest victory",
  "Victoires": "Victories",
- "Victoires, victoire la plus rapide.": "Victories, fastest victory.",
  "cases visées": "targeted boxes",
  "pour le déplacer.": "to move it.",
  "À toi de tirer": "It's your turn",
@@ -85,5 +84,6 @@
  "collé accepté": "touching accepted",
  "place libre refusée": "free spot refused",
  "tourner au clic": "rotate on click",
- "effets sans fin": "endless effects"
+ "effets sans fin": "endless effects",
+ "Rien n'est synchronisé : tes records restent sur cet appareil.": "Nothing is synced: your records stay on this device."
 }
