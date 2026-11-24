@@ -4,6 +4,10 @@ La bataille navale contre l'ordinateur : chacun cache cinq navires sur sa grille
 
 *English version: [README.en.md](README.en.md)*
 
+## À distance (nouveau en 1.2.0)
+
+La bataille navale contre un ami, à distance, grâce à un code : chaque PC garde sa flotte secrète, seuls les tirs et leurs réponses voyagent.
+
 ## Comment jouer
 
 - **Avant la bataille**, place ta flotte sur la grille de gauche : **glisse** un navire pour le déplacer, **un clic** dessus le tourne (il se décale un peu s'il ne tient pas). Un cadre vert ou rouge montre s'il peut se poser là. **Au hasard** replace toute ta flotte, **Combat !** (ou Entrée) lance la partie.

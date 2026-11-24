@@ -6,7 +6,9 @@ const HTML = `<div class="appWrap wide">
     <div class="gSide">
       <div class="sysCard"><b>RECORDS</b><div class="gStats" id="gStats"></div></div>
       <div class="row"><button class="btn main" id="gNew">NOUVELLE PARTIE</button><button class="btn" id="ftFs">PLEIN ÉCRAN</button></div>
-      <label class="row">Amiral <select id="ftLvl" class="f"><option value="0">Facile</option><option value="1">Normal</option></select></label>
+      <label class="row">Partie <select id="ftMode" class="f"><option value="ia">Contre l'ordinateur</option><option value="net">À distance (par un code)</option></select></label>
+      <div id="ftNet" style="display:none"><div class="row"><button class="btn" id="ftHost">CRÉER UNE PARTIE</button></div><div class="row"><input class="f" id="ftCode" placeholder="CODE" maxlength="8" autocomplete="off" spellcheck="false" style="max-width:110px;text-transform:uppercase"><button class="btn" id="ftJoin">REJOINDRE</button></div><div class="hint" id="ftNetInfo"></div></div>
+      <label class="row" id="ftLvlRow">Amiral <select id="ftLvl" class="f"><option value="0">Facile</option><option value="1">Normal</option></select></label>
       <div class="hint">Avant la bataille : glisse tes navires sur ta grille, un clic sur un navire le tourne. « Au hasard » les replace, « Combat ! » ou Entrée lance la partie.</div><div class="hint">Touché : tu rejoues. Autour d'un navire coulé, l'eau est marquée d'office (les navires ne se touchent jamais).</div><div class="hint">En normal, l'amiral d'en face tire en damier puis achève ce qu'il a touché.</div>
     </div></div>
 </div>`;
@@ -339,7 +341,14 @@ function ftFits(ships, id, x, y, h) {  // le navire id tiendrait-il là, sans to
   return ships.every((s, j) => j === id || s.cells.every(([a, b]) => cells.every(([c, d]) => Math.abs(a - c) > 1 || Math.abs(b - d) > 1)));
 }
 function ftOcc(F) { F.occ = Array.from({length: FT.N}, () => Array(FT.N).fill(-1)); F.ships.forEach((s, id) => s.cells.forEach(([a, b]) => F.occ[b][a] = id)); }
-const fts = gstore('flotte', {wins: 0, games: 0, lvl: 1});
+const fts = gstore('flotte', {wins: 0, games: 0, lvl: 1}); fts.net ??= {w: 0, g: 0}; fts.mode = 'ia';  // une partie à distance ne survit pas à la fermeture
+// à distance : deux PC, une partie par un code (ctx.room, serveur NeoDex). Chaque PC garde sa flotte secrète : on envoie la case visée ({t:'tir', x, y}),
+// l'autre PC répond ce qu'il y a ({t:'res', r, et le navire entier s'il est coulé}). Chacun place sa flotte puis « Combat ! » ({t:'pret'}) ;
+// l'hôte tire en premier à la première partie, puis chacun son tour à chaque revanche.
+const net = {code: '', host: false, opp: '', oppId: '', first: true, next: true, oppReady: false};
+const netOn = () => fts.mode === 'net' && !!net.opp;
+const netSay = t => { $('ftNetInfo').textContent = t; };
+const ftBlank = () => ({occ: Array.from({length: FT.N}, () => Array(FT.N).fill(-1)), ships: FT.SHIPS.map(len => ({len, cells: [[0, 0]], h: true, hits: 0}))});  // la flotte d'en face, inconnue : on ne voit que les navires coulés
 let ft = null;
 function ftPlace() {  // une flotte au hasard, les navires ne se touchent pas (même en diagonale)
   for (;;) {
@@ -355,8 +364,8 @@ function ftPlace() {  // une flotte au hasard, les navires ne se touchent pas (m
   }
 }
 function ftNew() {
-  ft = Object.assign(ft || {tick: 0, raf: 0}, {mode: 'place', seen: ft ? ft.tick : 0, me: ftPlace(), foe: ftPlace(), shotMe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), shotFoe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), turn: 'me', aiAt: 0, targets: [], parts: [], rings: [], drag: null, endAt: 0, msg: 'Place tes navires'});
-  ftInfo();
+  ft = Object.assign(ft || {tick: 0, raf: 0}, {mode: 'place', seen: ft ? ft.tick : 0, me: ftPlace(), foe: fts.mode === 'net' ? ftBlank() : ftPlace(), shotMe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), shotFoe: Array.from({length: FT.N}, () => Array(FT.N).fill(0)), turn: 'me', aiAt: 0, targets: [], parts: [], rings: [], drag: null, endAt: 0, msg: 'Place tes navires'});
+  net.oppReady = false; ftInfo();
 }
 const ftSunk = s => s.hits >= s.len;
 function ftFire(side, x, y) {  // side : la flotte visée ; -> 'miss' | 'hit' | 'sunk'
@@ -384,7 +393,9 @@ function ftAi() {  // l'ordinateur : il chasse en damier, puis achève ce qu'il 
   if (ftLost(ft.me)) return ftEnd(false);
   ft.msg = r === 'miss' ? 'À toi de tirer' : r === 'sunk' ? 'Il a coulé un de tes navires !' : 'Touché ! Il rejoue'; if (r === 'miss') ft.turn = 'me'; else ft.aiAt = ft.tick + 40;
 }
-function ftEnd(win) { ft.mode = 'over'; ft.win = win; ft.endAt = ft.tick; fts.games++; if (win) { fts.wins++; best('flotte' + fts.lvl, -ft.shotFoe.flat().filter(v => v).length); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .14, 'triangle'), i * 100)); } saveGames(); ftInfo(); }
+function ftEnd(win) { ft.mode = 'over'; ft.win = win; ft.endAt = ft.tick;
+  if (fts.mode === 'net') { fts.net.g++; if (win) { fts.net.w++; [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .14, 'triangle'), i * 100)); } saveGames(); ftInfo(); return; }
+  fts.games++; if (win) { fts.wins++; best('flotte' + fts.lvl, -ft.shotFoe.flat().filter(v => v).length); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .14, 'triangle'), i * 100)); } saveGames(); ftInfo(); }
 function ftBurst(side, x, y, hit, big = false) {
   const X = (side === 'foe' ? FT.RX : FT.LX) + x * FT.C + 6.5, Y = FT.Y0 + y * FT.C + 6.5, R = Math.random;
   if (hit) {  // le feu : une boule qui s'ouvre, des éclats qui retombent dans l'eau, puis une fumée qui monte
@@ -456,7 +467,11 @@ function ftDraw() {
   pxFont(g, 'TA FLOTTE', FT.LX, FT.Y0 - 8, '#c8d8ff', 6); pxFont(g, 'EN FACE', FT.RX, FT.Y0 - 8, '#ffb0b8', 6);
   for (; ft.seen < ft.tick; ft.seen++) ftStepFx();
   ftGrid(FT.LX, ft.me, ft.shotMe, true); ftGrid(FT.RX, ft.foe, ft.shotFoe, false); ftFxDraw();
-  if (ft.mode === 'place') {  // avant la bataille : la grille d'en face sert de panneau, avec deux boutons
+  if (ft.mode === 'ready' || fts.mode === 'net' && ft.mode === 'place' && !net.opp) {  // à distance : on attend l'ami
+    px(g, 'rgba(4,12,26,.82)', FT.RX - 2, FT.Y0 - 2, FT.N * FT.C + 4, FT.N * FT.C + 4);
+    const t = !net.code ? ['Crée une partie', 'ou rejoins celle', 'de ton ami.'] : !net.opp ? ['Code ' + net.code, 'En attente', 'de ton ami…'] : ['Flotte prête.', 'Ton ami place', 'encore la sienne…'];
+    t.forEach((x, i) => pxFont(g, x, FT.RX + 65, FT.Y0 + 40 + i * 12, i ? '#c8d8ff' : '#ffd84a', i ? 6 : 7, 'center'));
+  } else if (ft.mode === 'place') {  // avant la bataille : la grille d'en face sert de panneau, avec deux boutons
     px(g, 'rgba(4,12,26,.82)', FT.RX - 2, FT.Y0 - 2, FT.N * FT.C + 4, FT.N * FT.C + 4);
     pxFont(g, 'PLACE TA FLOTTE', FT.RX + 65, FT.Y0 + 18, '#ffd84a', 7, 'center');
     ['Glisse un navire', 'pour le déplacer.', 'Clic : le tourner.'].forEach((t, i) => pxFont(g, t, FT.RX + 65, FT.Y0 + 36 + i * 11, '#c8d8ff', 6, 'center'));
@@ -466,12 +481,15 @@ function ftDraw() {
   const left = s => s.ships.filter(x => !ftSunk(x)).length;
   pxFont(g, left(ft.me) + ' navires', FT.LX + FT.N * FT.C, FT.Y0 - 8, '#8aa8d8', 6, 'right'); pxFont(g, left(ft.foe) + ' navires', FT.RX + FT.N * FT.C, FT.Y0 - 8, '#d88a9a', 6, 'right');
   pxFont(g, ft.mode === 'place' ? 'Place tes navires, puis « Combat ! »' : ft.msg, W / 2, 18, ft.turn === 'me' ? '#ffd84a' : '#ffffff', 7, 'center');
-  if (ft.mode === 'over' && ft.tick - ft.endAt > 30) gameText(g, W, [[ft.win ? 'VICTOIRE !' : 'TA FLOTTE A COULÉ', ft.win ? '#5fdf6a' : '#ff4a5a', 12], [ft.shotFoe.flat().filter(v => v).length + ' cases visées', '#ffffff'], ['Clic : nouvelle bataille', '#ffd84a']], 100);
+  if (ft.mode === 'over' && ft.tick - ft.endAt > 30) gameText(g, W, [[ft.win ? 'VICTOIRE !' : 'TA FLOTTE A COULÉ', ft.win ? '#5fdf6a' : '#ff4a5a', 12], [ft.shotFoe.flat().filter(v => v).length + ' cases visées', '#ffffff'], [fts.mode === 'net' ? (net.host ? 'Clic : revanche' : 'Clic : demander une revanche') : 'Clic : nouvelle bataille', '#ffd84a']], 100);
 }
 const FT_BTN = {rnd: {x: FT.RX + 20, y: FT.Y0 + 76, w: 90, h: 15, label: 'AU HASARD'}, go: {x: FT.RX + 20, y: FT.Y0 + 98, w: 90, h: 17, label: 'COMBAT !'}};
 const ftCell = (e, X0 = FT.RX, clamp = false) => { const [mx, my] = cpos(e); let x = Math.floor((mx - X0) / FT.C), y = Math.floor((my - FT.Y0) / FT.C); if (clamp) { x = Math.max(-4, Math.min(FT.N + 3, x)); y = Math.max(-4, Math.min(FT.N + 3, y)); return [x, y]; } return x >= 0 && y >= 0 && x < FT.N && y < FT.N ? [x, y] : null; };
 const ftBtnAt = e => { const [mx, my] = cpos(e); return Object.keys(FT_BTN).find(k => { const b = FT_BTN[k]; return mx >= b.x && mx < b.x + b.w && my >= b.y && my < b.y + b.h; }); };
-function ftStart() { if (ft.mode !== 'place') return; ft.mode = 'play'; ft.drag = null; ft.msg = 'À toi de tirer'; beep(440, .1, 'square', 880, .06); }
+function ftStart() { if (ft.mode !== 'place') return; ft.drag = null;
+  if (fts.mode === 'net') { if (!netOn()) return; ft.mode = 'ready'; ctx.room.send({t: 'pret'}).catch(e => toast(e.message, true)); beep(440, .1, 'square', 880, .06); return netGo(); }
+  ft.mode = 'play'; ft.msg = 'À toi de tirer'; beep(440, .1, 'square', 880, .06); }
+function netGo() { if (ft.mode !== 'ready' || !net.oppReady) return; ft.mode = 'play'; ft.turn = net.first ? 'me' : 'opp'; ft.msg = net.first ? 'À toi de tirer' : 'Ton ami tire en premier'; beep(660, .08); }
 function ftShuffle() { ft.me = ftPlace(); ft.drag = null; beep(330, .06); }
 function ftRotate(id) {  // tourne autour de sa première case ; s'il ne tient pas, essaie de le décaler un peu
   const sh = ft.me.ships[id], [x0, y0] = sh.cells[0];
@@ -488,17 +506,72 @@ cv.onpointermove = e => { if (!ft) return; ft.hover = ftCell(e); ft.hoverBtn = f
   const d = ft.drag; if (d) { const [cx, cy] = ftCell(e, FT.LX, true), nx = cx - d.ox, ny = cy - d.oy; if (nx !== d.x || ny !== d.y) { d.x = nx; d.y = ny; d.moved = true; } } };
 cv.onpointerup = cv.onpointercancel = () => { if (ft?.drag) ftDrop(); };
 cv.onpointerdown = e => {
-  e.preventDefault(); if (!ft) return; if (ft.mode === 'over') { if (ft.tick - ft.endAt > 30) ftNew(); return; }
+  e.preventDefault(); if (!ft) return; if (ft.mode === 'over') { if (ft.tick - ft.endAt > 30) { if (fts.mode === 'net') netAgain(); else ftNew(); } return; }
   if (ft.mode === 'place') {
     const b = ftBtnAt(e); if (b === 'go') return ftStart(); if (b === 'rnd') return ftShuffle();
     const m = ftCell(e, FT.LX), id = m ? ft.me.occ[m[1]][m[0]] : -1; if (id < 0) return;
     const [x0, y0] = ft.me.ships[id].cells[0]; ft.drag = {id, ox: m[0] - x0, oy: m[1] - y0, x: x0, y: y0, h: ft.me.ships[id].h, moved: false}; try { cv.setPointerCapture(e.pointerId); } catch {} return;
   }
   const c = ftCell(e); if (!c || ft.turn !== 'me' || ft.shotFoe[c[1]][c[0]]) return;
+  if (fts.mode === 'net') { if (!netOn()) return; ft.turn = 'wait'; ft.msg = 'Tir parti…'; ctx.room.send({t: 'tir', x: c[0], y: c[1]}).catch(e => { ft.turn = 'me'; toast(e.message, true); }); return; }
   const r = ftFire('foe', ...c); if (ftLost(ft.foe)) return ftEnd(true);
   ft.msg = r === 'miss' ? 'Dans l\'eau…' : r === 'sunk' ? 'Coulé ! Tu rejoues' : 'Touché ! Tu rejoues'; if (r === 'miss') { ft.turn = 'ai'; ft.aiAt = ft.tick + 45; }
 };
-function ftInfo() { const b = games.best['flotte' + fts.lvl]; showStats([['Victoires', fts.wins + ' / ' + fts.games], ['Victoire la plus rapide', b != null ? -b + ' tirs' : '—']]); $('ftLvl').value = fts.lvl; }
+function ftInfo() { const b = games.best['flotte' + fts.lvl];
+  if (fts.mode === 'net') showStats([['Victoires à distance', fts.net.w + ' / ' + fts.net.g]]); else showStats([['Victoires', fts.wins + ' / ' + fts.games], ['Victoire la plus rapide', b != null ? -b + ' tirs' : '—']]);
+  $('ftLvl').value = fts.lvl; $('ftMode').value = fts.mode; $('ftLvlRow').style.display = fts.mode === 'ia' ? '' : 'none'; $('ftNet').style.display = fts.mode === 'net' ? '' : 'none'; }
+// à distance : le tir de l'ami sur ma flotte (je réponds ce qu'il a touché), la réponse à mon tir (je la reporte sur la grille d'en face)
+function netShot(x, y) {
+  if (ft.mode !== 'play' || ft.turn !== 'opp' || !(x >= 0 && x < FT.N && y >= 0 && y < FT.N) || ft.shotMe[y][x]) return;
+  const r = ftFire('me', x, y), id = ft.me.occ[y][x], sh = r === 'sunk' ? ft.me.ships[id] : null, lost = ftLost(ft.me);
+  ctx.room.send({t: 'res', x, y, r, lost, ...(sh ? {id, cells: sh.cells, h: sh.h} : {})}).catch(() => {});
+  if (lost) return ftEnd(false);
+  ft.msg = r === 'miss' ? 'À toi de tirer' : r === 'sunk' ? 'Il a coulé un de tes navires !' : 'Touché ! Il rejoue'; if (r === 'miss') ft.turn = 'me';
+}
+function netRes(m) {
+  const {x, y} = m; if (ft.mode !== 'play' || ft.turn !== 'wait' || !(x >= 0 && x < FT.N && y >= 0 && y < FT.N)) return;
+  const hit = m.r === 'hit' || m.r === 'sunk'; ft.shotFoe[y][x] = hit ? 2 : 1; ftBurst('foe', x, y, hit);
+  if (!hit) beep(200, .15, 'sine', 120, .06); else beep(90, .25, 'sawtooth', 50, .08);
+  if (m.r === 'sunk' && Number.isInteger(m.id) && m.id >= 0 && m.id < FT.SHIPS.length && Array.isArray(m.cells) && m.cells.length === FT.SHIPS[m.id]) {
+    const cells = m.cells.map(c => [+c[0], +c[1]]).filter(([a, b]) => a >= 0 && a < FT.N && b >= 0 && b < FT.N);
+    ft.foe.ships[m.id] = {len: FT.SHIPS[m.id], cells, h: !!m.h, hits: FT.SHIPS[m.id]}; cells.forEach(([a, b]) => { ft.foe.occ[b][a] = m.id; ft.shotFoe[b][a] = 2; });
+    for (const [a, b] of cells) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (ft.shotFoe[b + dy]?.[a + dx] === 0) ft.shotFoe[b + dy][a + dx] = 1;
+  }
+  if (m.lost) return ftEnd(true);
+  ft.msg = !hit ? 'Dans l\'eau…' : m.r === 'sunk' ? 'Coulé ! Tu rejoues' : 'Touché ! Tu rejoues'; ft.turn = hit ? 'me' : 'opp';
+}
+const netLeave = () => { if (net.code) try { ctx.room.leave().catch(() => {}); } catch {} Object.assign(net, {code: '', host: false, opp: '', oppId: '', first: true, next: true, oppReady: false}); };
+function netStart(first) { net.first = first; ftNew(); netSay('Contre ' + net.opp + ' · ' + (first ? 'tu tires en premier' : 'ton ami tire en premier') + ' · code ' + net.code); }
+function netAgain() { if (!netOn()) return; if (net.host) { const f = net.next; net.next = !f; ctx.room.send({t: 'start', first: !f}).catch(() => {}); netStart(f); } else ctx.room.send({t: 'rejouer'}).catch(() => {}); }
+ctx.room?.on(ev => {
+  if (fts.mode !== 'net' || !net.code) return;
+  if (ev.t === 'arrive') {
+    if (!net.host) return;
+    if (net.opp) return void ctx.room.send({t: 'pleine'}, ev.id).catch(() => {});
+    net.opp = ev.name || 'ton ami'; net.oppId = ev.id; sfx?.('notify'); netAgain();
+  } else if (ev.t === 'part' && ev.id === net.oppId || ev.t === 'fin') {
+    netSay(ev.t === 'fin' ? 'Connexion perdue avec le serveur de parties.' : 'Ton ami a quitté la partie.' + (net.host ? ' Le code reste valable : il peut revenir.' : ''));
+    net.opp = ''; net.oppId = ''; if (ev.t === 'fin') net.code = ''; ftNew();
+  } else if (ev.t === 'msg' && ev.from === net.oppId) {
+    const m = ev.data || {};
+    if (m.t === 'start' && !net.host) netStart(!!m.first);
+    else if (m.t === 'rejouer' && net.host && ft.mode === 'over') netAgain();
+    else if (m.t === 'pleine') { netSay('Cette partie a déjà deux joueurs.'); netLeave(); }
+    else if (m.t === 'pret') { net.oppReady = true; netGo(); }
+    else if (m.t === 'tir') netShot(+m.x, +m.y);
+    else if (m.t === 'res') netRes(m);
+  }
+});
+$('ftMode').onchange = () => { netLeave(); fts.mode = $('ftMode').value === 'net' ? 'net' : 'ia'; ftNew(); $('ftMode').blur(); if (fts.mode === 'net') netSay('Crée une partie et donne son code à ton ami, ou tape le sien.'); };
+$('ftHost').onclick = async () => { $('ftHost').blur();
+  try { netLeave(); const r = await ctx.room.create('hôte'); Object.assign(net, {code: r.code, host: true}); ftNew(); netSay('Code de la partie : ' + r.code + ' · donne-le à ton ami. En attente…'); }
+  catch (e) { netSay('Impossible de créer la partie : ' + e.message); } };
+$('ftJoin').onclick = async () => { $('ftJoin').blur();
+  try { netLeave(); const r = await ctx.room.join($('ftCode').value, 'invité'), host = r.joueurs.find(j => j.host);
+    if (!host || r.joueurs.length > 1) { await ctx.room.leave(); return netSay(host ? 'Cette partie a déjà deux joueurs.' : 'Aucune partie avec ce code.'); }
+    Object.assign(net, {code: r.code, host: false, opp: host.name || 'ton ami', oppId: host.id}); netSay('Connecté · la partie commence…'); }
+  catch (e) { netSay('Impossible de rejoindre : ' + e.message); } };
+$('ftCode').onkeydown = e => { if (e.key === 'Enter') $('ftJoin').click(); };
 $('gNew').onclick = () => { ftNew(); $('gNew').blur(); };
 $('ftFs').onclick = () => { $('ftFs').blur(); try { if (document.fullscreenElement) document.exitFullscreen(); else cv.parentElement.requestFullscreen?.().catch(() => {}); } catch {} };
 document.addEventListener('keydown', e => { if (keyOk(e) && ft?.mode === 'place' && e.key === 'Enter') { e.preventDefault(); ftStart(); } });
@@ -522,7 +595,7 @@ function ftCheck() {  // vérification : 5 navires de 17 cases qui ne se touchen
   return bad.length ? bad.join(', ') : 'ok';
 }
 { const c = ftCheck(); console.assert(c === 'ok', 'flotte', c); }
-cv.__ft = {st: () => ft, check: ftCheck, FT, BTN: FT_BTN, fits: (id, x, y, h) => ftFits(ft.me.ships, id, x, y, h)};
+cv.__ft = {st: () => ft, check: ftCheck, net: () => net, FT, BTN: FT_BTN, fits: (id, x, y, h) => ftFits(ft.me.ships, id, x, y, h)};
 ctx.onOpen(() => { if (!ft) ftNew(); gameLoop(ft, 'flotte', ftUpdate, ftDraw); ftInfo(); });
 
 }

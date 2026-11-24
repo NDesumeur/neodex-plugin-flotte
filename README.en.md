@@ -4,6 +4,10 @@ Battleship against the computer: each side hides five ships on its grid, and you
 
 *Version française : [README.md](README.md)*
 
+## Online (new in 1.2.0)
+
+Naval battle against a friend, online, with a code: each PC keeps its fleet secret, only shots and their answers travel.
+
 ## How to play
 
 - **Before the battle**, place your fleet on the left grid: **drag** a ship to move it, **one click** on it turns it (it shifts a little if it does not fit). A green or red frame shows whether it can go there. **At random** places your whole fleet again, **Fight!** (or Enter) starts the game.

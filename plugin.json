@@ -1,16 +1,19 @@
 {
   "id": "neodex.flotte",
   "name": "Flotte",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "author": "NDesumeur",
-  "description": "La bataille navale contre l'ordinateur : deux grilles de 10 × 10, cinq navires dessinés de chaque côté (porte-avions, cuirassé, croiseur, sous-marin, torpilleur) que tu places toi-même en les glissant et en les tournant, ou au hasard, sans qu'ils se touchent. Un tir à tour de rôle, avec explosions et gerbes d'eau animées ; qui touche rejoue, et l'eau autour d'un navire coulé est marquée d'office. Amiral facile ou normal, plein écran, victoires et victoire la plus rapide par niveau.",
+  "description": "La bataille navale contre l'ordinateur : deux grilles de 10 × 10, cinq navires dessinés de chaque côté (porte-avions, cuirassé, croiseur, sous-marin, torpilleur) que tu places toi-même en les glissant et en les tournant, ou au hasard, sans qu'ils se touchent. Un tir à tour de rôle, avec explosions et gerbes d'eau animées ; qui touche rejoue, et l'eau autour d'un navire coulé est marquée d'office. Amiral facile ou normal, plein écran, victoires et victoire la plus rapide par niveau. À distance contre un ami, par un code.",
   "icon": "icon.png",
   "entry": "index.js",
   "view": "flotte",
   "neobase": ">=4.0.0",
   "type": "app",
   "category": "Jeux",
-  "compatibility": ["windows", "linux"],
+  "compatibility": [
+    "windows",
+    "linux"
+  ],
   "syncMode": "aucune",
   "syncInfo": "Rien n'est synchronisé : tes records restent sur cet appareil.",
   "mobile": false,
@@ -18,6 +21,7 @@
   "dependencies": {},
   "sdk": "2.1.0",
   "permissions": [
-    "storage"
+    "storage",
+    "rooms"
   ]
 }
