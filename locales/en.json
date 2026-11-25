@@ -123,5 +123,18 @@
  "Victoires à distance": "Online wins",
  "tu tires en premier": "you fire first",
  "ton ami tire en premier": "your friend fires first",
- "La bataille navale contre l'ordinateur : deux grilles de 10 × 10, cinq navires dessinés de chaque côté (porte-avions, cuirassé, croiseur, sous-marin, torpilleur) que tu places toi-même en les glissant et en les tournant, ou au hasard, sans qu'ils se touchent. Un tir à tour de rôle, avec explosions et gerbes d'eau animées ; qui touche rejoue, et l'eau autour d'un navire coulé est marquée d'office. Amiral facile ou normal, plein écran, victoires et victoire la plus rapide par niveau. À distance contre un ami, par un code.": "Battleship against the computer: two 10 × 10 grids, five drawn ships on each side (carrier, battleship, cruiser, submarine, destroyer) that you place yourself by dragging and turning them, or at random, without touching. One shot each in turn, with animated explosions and water splashes; a hit plays again, and the water around a sunk ship is marked automatically. Easy or normal admiral, full screen, wins and fastest win per level. Online against a friend, with a code."
+ "La bataille navale contre l'ordinateur : deux grilles de 10 × 10, cinq navires dessinés de chaque côté (porte-avions, cuirassé, croiseur, sous-marin, torpilleur) que tu places toi-même en les glissant et en les tournant, ou au hasard, sans qu'ils se touchent. Un tir à tour de rôle, avec explosions et gerbes d'eau animées ; qui touche rejoue, et l'eau autour d'un navire coulé est marquée d'office. Amiral facile ou normal, plein écran, victoires et victoire la plus rapide par niveau. À distance contre un ami, par un code.": "Battleship against the computer: two 10 × 10 grids, five drawn ships on each side (carrier, battleship, cruiser, submarine, destroyer) that you place yourself by dragging and turning them, or at random, without touching. One shot each in turn, with animated explosions and water splashes; a hit plays again, and the water around a sunk ship is marked automatically. Easy or normal admiral, full screen, wins and fastest win per level. Online against a friend, with a code.",
+ "Coulé !": "Sunk!",
+ "Gagner une première bataille": "Win your first battle",
+ "Gagner contre l'amiral Normal": "Win against the Normal admiral",
+ "Grande flotte": "Great fleet",
+ "Gagner 10 batailles": "Win 10 battles",
+ "Tir précis": "Sharp shooting",
+ "Gagner en 50 tirs au plus": "Win in 50 shots or fewer",
+ "Œil de faucon": "Hawk eye",
+ "Gagner en 35 tirs au plus": "Win in 35 shots or fewer",
+ "Bataille entre amis": "Battle among friends",
+ "Gagner une partie en ligne": "Win an online game",
+ "Moins de tirs (Facile)": "Fewest shots (Easy)",
+ "Moins de tirs (Normal)": "Fewest shots (Normal)"
 }

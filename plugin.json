@@ -1,7 +1,7 @@
 {
   "id": "neodex.flotte",
   "name": "Flotte",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "NDesumeur",
   "description": "La bataille navale contre l'ordinateur : deux grilles de 10 × 10, cinq navires dessinés de chaque côté (porte-avions, cuirassé, croiseur, sous-marin, torpilleur) que tu places toi-même en les glissant et en les tournant, ou au hasard, sans qu'ils se touchent. Un tir à tour de rôle, avec explosions et gerbes d'eau animées ; qui touche rejoue, et l'eau autour d'un navire coulé est marquée d'office. Amiral facile ou normal, plein écran, victoires et victoire la plus rapide par niveau. À distance contre un ami, par un code.",
   "icon": "icon.png",
@@ -23,5 +23,52 @@
   "permissions": [
     "storage",
     "rooms"
+  ],
+  "succes": [
+    {
+      "id": "premier",
+      "nom": "Coulé !",
+      "texte": "Gagner une première bataille"
+    },
+    {
+      "id": "normal",
+      "nom": "Amiral",
+      "texte": "Gagner contre l'amiral Normal"
+    },
+    {
+      "id": "dix",
+      "nom": "Grande flotte",
+      "texte": "Gagner 10 batailles"
+    },
+    {
+      "id": "rapide",
+      "nom": "Tir précis",
+      "texte": "Gagner en 50 tirs au plus"
+    },
+    {
+      "id": "eclair",
+      "nom": "Œil de faucon",
+      "texte": "Gagner en 35 tirs au plus",
+      "cache": true
+    },
+    {
+      "id": "net",
+      "nom": "Bataille entre amis",
+      "texte": "Gagner une partie en ligne"
+    }
+  ],
+  "records": [
+    {
+      "id": "facile",
+      "nom": "Moins de tirs (Facile)",
+      "sens": "bas",
+      "format": "nombre"
+    },
+    {
+      "id": "normal",
+      "nom": "Moins de tirs (Normal)",
+      "sens": "bas",
+      "format": "nombre"
+    }
   ]
 }

@@ -301,6 +301,9 @@ export default async function (ctx) {
   const saveGames = () => { clearTimeout(gamesTimer); gamesTimer = setTimeout(() => { gamesTimer = null; folder.write('games', games).catch(() => {}); }, 500); };
   const best = (k, v) => { const b = games.best[k]; if (b == null || v > b) { games.best[k] = v; saveGames(); return true; } return false; };
   const gstore = (k, init) => (games[k] ??= init);
+  // les trophées de NeoDex (3.4.8 et plus) : succès et records déclarés dans plugin.json ; sur un NeoDex plus ancien, rien ne se passe
+  const trophy = id => { ctx.games?.unlock(id).catch(() => {}); };
+  const trophyRecord = (id, v) => { if (v != null && Number.isFinite(+v)) ctx.games?.record(id, +v).catch(() => {}); };
 function gameLoop(st, appKey, update, draw) {
   cancelAnimationFrame(st.raf);
   const STEP = 1000 / 60; let acc = 0, last = performance.now();
@@ -517,7 +520,8 @@ cv.onpointerdown = e => {
   const r = ftFire('foe', ...c); if (ftLost(ft.foe)) return ftEnd(true);
   ft.msg = r === 'miss' ? 'Dans l\'eau…' : r === 'sunk' ? 'Coulé ! Tu rejoues' : 'Touché ! Tu rejoues'; if (r === 'miss') { ft.turn = 'ai'; ft.aiAt = ft.tick + 45; }
 };
-function ftInfo() { const b = games.best['flotte' + fts.lvl];
+function ftInfo() {
+  setTimeout(ftTrophies); const b = games.best['flotte' + fts.lvl];
   if (fts.mode === 'net') showStats([['Victoires à distance', fts.net.w + ' / ' + fts.net.g]]); else showStats([['Victoires', fts.wins + ' / ' + fts.games], ['Victoire la plus rapide', b != null ? -b + ' tirs' : '—']]);
   $('ftLvl').value = fts.lvl; $('ftMode').value = fts.mode; $('ftLvlRow').style.display = fts.mode === 'ia' ? '' : 'none'; $('ftNet').style.display = fts.mode === 'net' ? '' : 'none'; }
 // à distance : le tir de l'ami sur ma flotte (je réponds ce qu'il a touché), la réponse à mon tir (je la reporte sur la grille d'en face)
@@ -596,6 +600,13 @@ function ftCheck() {  // vérification : 5 navires de 17 cases qui ne se touchen
 }
 { const c = ftCheck(); console.assert(c === 'ok', 'flotte', c); }
 cv.__ft = {st: () => ft, check: ftCheck, net: () => net, FT, BTN: FT_BTN, fits: (id, x, y, h) => ftFits(ft.me.ships, id, x, y, h)};
+// les trophées, tirés des statistiques et des records gardés (aussi à l'ouverture : ce qui a été fait avant compte)
+function ftTrophies() {
+  const b = [games.best.flotte0, games.best.flotte1], top = Math.max(b[0] ?? -999, b[1] ?? -999), sig = [fts.wins, fts.net.w, b.join()].join(); if (sig === ftTrophies.sig) return; ftTrophies.sig = sig;
+  trophyRecord('facile', b[0] != null ? -b[0] : null); trophyRecord('normal', b[1] != null ? -b[1] : null);
+  if (fts.wins >= 1) trophy('premier'); if (b[1] != null) trophy('normal'); if (fts.wins >= 10) trophy('dix');
+  if (top >= -50) trophy('rapide'); if (top >= -35) trophy('eclair'); if (fts.net.w >= 1) trophy('net');
+}
 ctx.onOpen(() => { if (!ft) ftNew(); gameLoop(ft, 'flotte', ftUpdate, ftDraw); ftInfo(); });
 
 }
